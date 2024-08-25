@@ -1,0 +1,5 @@
+.env
+.fleet
+.idea
+.vscode
+bin/*
