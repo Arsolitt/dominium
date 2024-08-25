@@ -7,7 +7,7 @@ import (
 
 type errorWithLogCtx struct {
 	next error
-	ctx  logData
+	data logData
 }
 
 func (e *errorWithLogCtx) Error() string {
@@ -15,20 +15,20 @@ func (e *errorWithLogCtx) Error() string {
 }
 
 func WrapError(ctx context.Context, err error) error {
-	c := logData{}
-	if x, ok := ctx.Value(dataKey).(logData); ok {
-		c = x
+	data := logData{}
+	if d, ok := ctx.Value(dataKey).(logData); ok {
+		data = d
 	}
 	return &errorWithLogCtx{
 		next: err,
-		ctx:  c,
+		data: data,
 	}
 }
 
 func ErrorCtx(ctx context.Context, err error) context.Context {
 	var e *errorWithLogCtx
 	if errors.As(err, &e) {
-		return context.WithValue(ctx, dataKey, e.ctx)
+		return context.WithValue(ctx, dataKey, e.data)
 	}
 	return ctx
 }

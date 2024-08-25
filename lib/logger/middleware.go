@@ -30,9 +30,9 @@ func (h *Middlware) Handle(ctx context.Context, rec slog.Record) error {
 }
 
 func (h *Middlware) WithAttrs(attrs []slog.Attr) slog.Handler {
-	return &Middlware{next: h.next.WithAttrs(attrs)} // не забыть обернуть, но осторожно
+	return &Middlware{next: h.next.WithAttrs(attrs)}
 }
 
 func (h *Middlware) WithGroup(name string) slog.Handler {
-	return &Middlware{next: h.next.WithGroup(name)} // не забыть обернуть, но осторожно
+	return &Middlware{next: h.next.WithGroup(name)}
 }

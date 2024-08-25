@@ -7,7 +7,10 @@ import (
 )
 
 func InitLogging() {
-	handler := slog.Handler(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	handler := slog.Handler(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level:     slog.LevelDebug,
+		AddSource: false,
+	}))
 	handler = NewMiddleware(handler)
 	slog.SetDefault(slog.New(handler))
 }
