@@ -53,10 +53,12 @@ func readInfisicalConfig(stg interface{}, cfg infisicalCreds, path string) error
 		wg.Add(1)
 		go func(fld reflect.StructField, path string) {
 			defer wg.Done()
+
 			currentPath := path
-			if fld.Tag.Get("infisical-path") != "" {
-				currentPath = fmt.Sprintf("%s%s/", path, fld.Tag.Get("infisical-path"))
+			if newPath := fld.Tag.Get("infisical-path"); newPath != "" {
+				currentPath = fmt.Sprintf("%s%s/", path, newPath)
 			}
+
 			if fld.Type.Kind() == reflect.Struct {
 				err := readInfisicalConfig(val.Field(i).Addr().Interface(), cfg, currentPath)
 				if err != nil {
@@ -68,11 +70,13 @@ func readInfisicalConfig(stg interface{}, cfg infisicalCreds, path string) error
 					errCh <- err
 					return
 				}
+
 				fieldVal := val.Field(i)
 				if !fieldVal.IsValid() || !fieldVal.CanSet() {
 					errCh <- fmt.Errorf("field %s is not valid", fld.Name)
 					return
 				}
+
 				mu.Lock()
 				fieldVal.SetString(value)
 				mu.Unlock()

@@ -20,12 +20,12 @@ type Settings struct {
 	CacheHost   string   `infisical:"CACHE_HOST"`
 	CachePort   string   `infisical:"CACHE_PORT"`
 	Aboba       string   `infisical:"ABOBA" infisical-path:"aboba"`
+	Buba        Buba     `infisical-path:"features/buba"`
 	Features    Features `infisical-path:"features"`
 }
 
 type Features struct {
 	UserLogLevel string `infisical:"USER_LOG_LEVEL"`
-	Buba         Buba   `infisical-path:"buba"`
 }
 
 type Buba struct {
@@ -46,7 +46,6 @@ var once sync.Once
 
 func Get() Settings {
 	once.Do(func() {
-
 		slog.Warn("Read settings from env vars")
 		err := cleanenv.ReadEnv(&settings)
 		if err != nil {
