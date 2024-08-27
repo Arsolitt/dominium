@@ -1,6 +1,6 @@
 package logger
 
-type logData map[string]string
+type logData map[string]any
 
 type keyType string
 
