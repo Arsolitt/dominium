@@ -4,15 +4,20 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"sync"
 )
 
-func InitLogging() {
-	handler := slog.Handler(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level:     slog.LevelDebug,
-		AddSource: false,
-	}))
-	handler = NewMiddleware(handler)
-	slog.SetDefault(slog.New(handler))
+var once sync.Once
+
+func SetDefault(level slog.Level, source bool) {
+	once.Do(func() {
+		handler := slog.Handler(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+			Level:     level,
+			AddSource: source,
+		}))
+		handler = NewMiddleware(handler)
+		slog.SetDefault(slog.New(handler))
+	})
 }
 
 func WithLogValue(ctx context.Context, entryKey string, value any) context.Context {
