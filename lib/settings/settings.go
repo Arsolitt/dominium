@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"reflect"
 	"sync"
 
@@ -13,111 +14,185 @@ import (
 )
 
 type Settings struct {
-	LogLevel              int    `env:"LOG_LEVEL"`
+	LogLevel    int      `env:"LOG_LEVEL"`
+	Environment string   `env:"ENVIRONMENT"`
+	AppKey      string   `infisical:"APP_KEY"`
+	DbHost      string   `infisical:"DB_HOST"`
+	DbPort      string   `infisical:"DB_PORT"`
+	DbUser      string   `infisical:"DB_USER"`
+	DbPassword  string   `infisical:"DB_PASSWORD"`
+	DbName      string   `infisical:"DB_NAME"`
+	CacheHost   string   `infisical:"CACHE_HOST"`
+	CachePort   string   `infisical:"CACHE_PORT"`
+	Aboba       string   `infisical:"ABOBA" infisical-path:"/aboba"`
+	Features    Features `infisical-path:"/features"`
+}
+
+type Features struct {
+	UserLogLevel string `infisical:"USER_LOG_LEVEL"`
+}
+
+type infisicalCreds struct {
+	Environment           string `env:"ENVIRONMENT"`
 	InfisicalURL          string `env:"INFISICAL_URL"`
 	InfisicalClientID     string `env:"INFISICAL_CLIENT_ID"`
 	InfisicalClientSecret string `env:"INFISICAL_CLIENT_SECRET"`
 	InfisicalProjectID    string `env:"INFISICAL_PROJECT_ID"`
-	AppKey                string `infisical:"APP_KEY"`
 }
 
 var settings Settings
+var cfg infisicalCreds
 var once sync.Once
 
 func Get() Settings {
 	once.Do(func() {
-		New()
+
+		slog.Warn("Read settings from env vars")
+		err := cleanenv.ReadEnv(&settings)
+		if err != nil {
+			slog.Error("Failed to read env vars", "Error", err.Error())
+			os.Exit(1)
+		}
+
+		slog.Warn("Read infisical creds from env vars")
+		err = cleanenv.ReadEnv(&cfg)
+		if err != nil {
+			slog.Error("Failed to read env vars", "Error", err.Error())
+			os.Exit(1)
+		}
+
+		slog.Warn("Read settings from infisical")
+		err = hydrateInfisicalSettings(&settings, cfg, "/")
+		if err != nil {
+			slog.Error("Failed to hydrate settings", "Error", err.Error())
+			os.Exit(1)
+		}
 	})
 	return settings
 }
 
-func New() {
-	tmp := Settings{}
-	err := cleanenv.ReadEnv(&tmp)
+func readInfisical(field string, cfg infisicalCreds, path string) (string, error) {
+	client := infisical.NewInfisicalClient(infisical.Config{
+		SiteUrl: cfg.InfisicalURL,
+	})
+
+	_, err := client.Auth().UniversalAuthLogin(cfg.InfisicalClientID, cfg.InfisicalClientSecret)
+
 	if err != nil {
-		slog.Error("Failed to read env vars", "Error", err.Error())
-		return
+		return "", logger.WrapError(context.TODO(), err)
 	}
-	slog.Warn("Read settings from env vars")
-	// err = readInfisical(&tmp)
-	// if err != nil {
-	// 	slog.Error("Failed to read remote config", "Error", err.Error(), "URL", tmp.InfisicalURL)
-	// 	return
-	// }
-	// slog.Warn("Read settings from infisical")
-	tags, err := parseStructTags(tmp)
+
+	secret, err := client.Secrets().Retrieve(infisical.RetrieveSecretOptions{
+		SecretKey:   field,
+		Environment: cfg.Environment,
+		ProjectID:   cfg.InfisicalProjectID,
+		SecretPath:  path,
+	})
 	if err != nil {
-		slog.Error("Failed to parse struct", "Error", err.Error())
+		return "", logger.WrapError(context.TODO(), err)
 	}
-	slog.Warn("Parsed settings", "Tags", tags)
-	for k, v := range tags {
-		slog.Warn("Settings", "Key", tmp, "Value", v)
+
+	if secret.SecretValue == "" {
+		return "", logger.WrapError(context.TODO(), fmt.Errorf("secret %s is empty", field))
 	}
-	// fmt.Println(tags)
-	settings = tmp
+	return secret.SecretValue, nil
 }
 
-// func readInfisical(stg *Settings) error {
-// 	client := infisical.NewInfisicalClient(infisical.Config{
-// 		SiteUrl: stg.InfisicalURL,
-// 	})
-
-// 	_, err := client.Auth().UniversalAuthLogin(stg.InfisicalClientID, stg.InfisicalClientSecret)
-
-// 	if err != nil {
-// 		return logger.WrapError(context.TODO(), err)
+// func hydrateInfisicalSettings(stg *Settings) error {
+// 	typ := reflect.TypeOf(*stg)
+// 	if typ.Kind() != reflect.Struct {
+// 		return logger.WrapError(context.TODO(), fmt.Errorf("%s is not a struct", typ))
 // 	}
 
-// 	appKey, err := client.Secrets().Retrieve(infisical.RetrieveSecretOptions{
-// 		SecretKey:   "APP_KEY",
-// 		Environment: "local",
-// 		ProjectID:   stg.InfisicalProjectID,
-// 		SecretPath:  "/",
-// 	})
-// 	if err != nil {
-// 		return logger.WrapError(context.TODO(), err)
+// 	val := reflect.ValueOf(stg).Elem()
+// 	for i := 0; i < typ.NumField(); i++ {
+// 		fld := typ.Field(i)
+// 		secretName := fld.Tag.Get("infisical")
+// 		if secretName == "" {
+// 			continue
+// 		}
+
+// 		value, err := readInfisical(secretName, stg)
+// 		if err != nil {
+// 			return logger.WrapError(context.TODO(), err)
+// 		}
+
+// 		fieldVal := val.Field(i)
+// 		if !fieldVal.IsValid() || !fieldVal.CanSet() {
+// 			continue
+// 		}
+
+// 		fieldVal.SetString(value)
 // 	}
 
-// 	stg.AppKey = appKey.SecretValue
 // 	return nil
 // }
 
-func readInfisical(stg *Settings) error {
-	client := infisical.NewInfisicalClient(infisical.Config{
-		SiteUrl: stg.InfisicalURL,
-	})
-
-	_, err := client.Auth().UniversalAuthLogin(stg.InfisicalClientID, stg.InfisicalClientSecret)
-
-	if err != nil {
-		return logger.WrapError(context.TODO(), err)
-	}
-
-	appKey, err := client.Secrets().Retrieve(infisical.RetrieveSecretOptions{
-		SecretKey:   "APP_KEY",
-		Environment: "local",
-		ProjectID:   stg.InfisicalProjectID,
-		SecretPath:  "/",
-	})
-	if err != nil {
-		return logger.WrapError(context.TODO(), err)
-	}
-
-	stg.AppKey = appKey.SecretValue
-	return nil
-}
-
-func parseStructTags(s any) (map[string]string, error) {
-	typ := reflect.TypeOf(s)
+func hydrateInfisicalSettings(stg interface{}, cfg infisicalCreds, path string) error {
+	typ := reflect.TypeOf(stg).Elem()
 	if typ.Kind() != reflect.Struct {
-		return nil, fmt.Errorf("%s is not a struct", typ)
+		return logger.WrapError(context.TODO(), fmt.Errorf("%s is not a struct", typ))
 	}
-	m := make(map[string]string)
+
+	val := reflect.ValueOf(stg).Elem()
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	errCh := make(chan error, typ.NumField())
+
 	for i := 0; i < typ.NumField(); i++ {
 		fld := typ.Field(i)
-		if dbName := fld.Tag.Get("infisical"); dbName != "" {
-			m[fld.Name] = dbName
+		secretName := fld.Tag.Get("infisical")
+		if secretName != "" {
+
+			wg.Add(1)
+			go func(i int, secretName string) {
+				defer wg.Done()
+				newPath := fld.Tag.Get("infisical-path")
+				tmp := path
+				if newPath != "" {
+					tmp = newPath
+				}
+				value, err := readInfisical(secretName, cfg, tmp)
+				if err != nil {
+					errCh <- err
+					return
+				}
+
+				fieldVal := val.Field(i)
+				if !fieldVal.IsValid() || !fieldVal.CanSet() {
+					return
+				}
+
+				mu.Lock()
+				fieldVal.SetString(value)
+				mu.Unlock()
+			}(i, secretName)
+		} else if fld.Type.Kind() == reflect.Struct {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				newPath := fld.Tag.Get("infisical-path")
+				if newPath != "" {
+					err := hydrateInfisicalSettings(val.Field(i).Addr().Interface(), cfg, newPath)
+					if err != nil {
+						errCh <- err
+					}
+				} else {
+					err := hydrateInfisicalSettings(val.Field(i).Addr().Interface(), cfg, path)
+					if err != nil {
+						errCh <- err
+					}
+				}
+			}(i)
 		}
 	}
-	return m, nil
+
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		return logger.WrapError(context.TODO(), err)
+	}
+
+	return nil
 }
