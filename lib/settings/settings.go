@@ -32,7 +32,7 @@ type Buba struct {
 	BamBam string `infisical:"BAM_BAM"`
 }
 
-type infisicalCreds struct {
+type InfisicalCreds struct {
 	Environment           string `env:"ENVIRONMENT"`
 	InfisicalURL          string `env:"INFISICAL_URL"`
 	InfisicalClientID     string `env:"INFISICAL_CLIENT_ID"`
@@ -41,7 +41,7 @@ type infisicalCreds struct {
 }
 
 var settings Settings
-var cfg infisicalCreds
+var cfg InfisicalCreds
 var once sync.Once
 
 func Get() Settings {
@@ -68,4 +68,17 @@ func Get() Settings {
 		}
 	})
 	return settings
+}
+
+func GetCreds() InfisicalCreds {
+	once.Do(func() {
+		slog.Warn("Read infisical creds from env vars")
+		err := cleanenv.ReadEnv(&cfg)
+		if err != nil {
+			slog.Error("Failed to read env vars", "Error", err.Error())
+			os.Exit(1)
+		}
+
+	})
+	return cfg
 }

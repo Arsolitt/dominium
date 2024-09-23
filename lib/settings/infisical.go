@@ -10,7 +10,7 @@ import (
 	infisical "github.com/infisical/go-sdk"
 )
 
-func infisicalSecret(field string, cfg infisicalCreds, path string) (string, error) {
+func infisicalSecret(field string, cfg InfisicalCreds, path string) (string, error) {
 	client := infisical.NewInfisicalClient(infisical.Config{
 		SiteUrl: cfg.InfisicalURL,
 	})
@@ -37,7 +37,7 @@ func infisicalSecret(field string, cfg infisicalCreds, path string) (string, err
 	return secret.SecretValue, nil
 }
 
-func readInfisicalConfig(stg interface{}, cfg infisicalCreds, path string) error {
+func readInfisicalConfig(stg interface{}, cfg InfisicalCreds, path string) error {
 	typ := reflect.TypeOf(stg).Elem()
 	if typ.Kind() != reflect.Struct {
 		return logger.WrapError(context.TODO(), fmt.Errorf("%s is not a struct", typ))
